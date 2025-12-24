@@ -1,0 +1,1 @@
+# Vendorized subset of VideoHelperSuite.
