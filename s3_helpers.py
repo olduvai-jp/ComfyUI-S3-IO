@@ -11,7 +11,7 @@ from PIL import Image, ImageOps
 import folder_paths
 
 
-LIST_CACHE_TTL_SECONDS = 30 * 60
+LIST_CACHE_TTL_SECONDS = 0
 THUMB_MAX_SIZE = 256
 THUMB_PREFIX_DEFAULT = "thumbs"
 ENV_PREFIX = "S3IO_"
@@ -182,6 +182,8 @@ def invalidate_list_cache() -> None:
 def list_objects(prefix: str, refresh: bool = False) -> list[str]:
     global _force_refresh
     now = time.time()
+    if LIST_CACHE_TTL_SECONDS <= 0:
+        refresh = True
     cached = _list_cache.get(prefix)
     if not refresh and not _force_refresh and cached:
         cached_at, keys = cached

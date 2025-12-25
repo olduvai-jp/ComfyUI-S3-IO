@@ -124,7 +124,6 @@ class LoadImageS3:
         return {
             "required": {
                 "image": (sorted(keys), {"image_upload": True}),
-                "reload": ("BOOLEAN", {"default": False}),
             }
         }
 
@@ -132,12 +131,10 @@ class LoadImageS3:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
 
-    def load_image(self, image, reload=False):
+    def load_image(self, image):
         name = _strip_annotation(image)
         local_path = _resolve_local_path(image)
         preview_path = None
-        if reload:
-            s3_helpers.invalidate_list_cache()
 
         if os.path.exists(local_path):
             s3_key = s3_helpers.input_key_for(name)
@@ -146,10 +143,10 @@ class LoadImageS3:
             image_path = local_path
         else:
             s3_key = s3_helpers.resolve_input_key(name)
-            image_path = s3_helpers.download_to_cache(s3_key, refresh=reload)
+            image_path = s3_helpers.download_to_cache(s3_key)
             thumb_key = s3_helpers.thumb_key_for(s3_key)
             if s3_helpers.object_exists(thumb_key):
-                preview_path = s3_helpers.download_to_cache(thumb_key, refresh=reload, kind="thumbs")
+                preview_path = s3_helpers.download_to_cache(thumb_key, kind="thumbs")
             else:
                 preview_path = image_path
 
@@ -158,7 +155,7 @@ class LoadImageS3:
         return {"ui": ui, "result": (output_image, output_mask)}
 
     @classmethod
-    def IS_CHANGED(s, image, reload=False):
+    def IS_CHANGED(s, image):
         name = _strip_annotation(image)
         local_path = _resolve_local_path(image)
         if os.path.exists(local_path):
@@ -172,7 +169,7 @@ class LoadImageS3:
             return s3_key
 
     @classmethod
-    def VALIDATE_INPUTS(s, image, reload=False):
+    def VALIDATE_INPUTS(s, image):
         name = _strip_annotation(image)
         local_path = _resolve_local_path(image)
         if os.path.exists(local_path):
@@ -227,7 +224,6 @@ class LoadVideoUploadS3:
                 "frame_load_cap": ("INT", {"default": 0, "min": 0, "max": vhs_load_video.BIGMAX, "step": 1, "disable": 0}),
                 "skip_first_frames": ("INT", {"default": 0, "min": 0, "max": vhs_load_video.BIGMAX, "step": 1}),
                 "select_every_nth": ("INT", {"default": 1, "min": 1, "max": vhs_load_video.BIGMAX, "step": 1}),
-                "reload": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "meta_batch": ("VHS_BatchManager",),
@@ -248,9 +244,6 @@ class LoadVideoUploadS3:
 
     def load_video(self, **kwargs):
         video = kwargs.get("video")
-        reload = kwargs.pop("reload", False)
-        if reload:
-            s3_helpers.invalidate_list_cache()
         name = _strip_annotation(video)
         local_path = _resolve_local_path(video)
         if os.path.exists(local_path):
@@ -259,7 +252,7 @@ class LoadVideoUploadS3:
             video_path = local_path
         else:
             s3_key = s3_helpers.resolve_input_key(name)
-            video_path = s3_helpers.download_to_cache(s3_key, refresh=reload)
+            video_path = s3_helpers.download_to_cache(s3_key)
         kwargs["video"] = video_path
         return vhs_load_video.load_video(**kwargs)
 
