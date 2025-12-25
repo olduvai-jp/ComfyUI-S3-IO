@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import numpy as np
 import torch
@@ -37,6 +38,32 @@ def _preview_ui_for_path(path: str) -> dict:
                 "type": "temp",
             }
         ]
+    }
+
+
+def _download_entry_for_file(path: str) -> Optional[dict]:
+    if not path:
+        return None
+    file_path = os.path.abspath(path)
+    if not os.path.exists(file_path):
+        return None
+    output_dir = os.path.abspath(folder_paths.get_output_directory())
+    temp_dir = os.path.abspath(folder_paths.get_temp_directory())
+    if os.path.commonpath((file_path, output_dir)) == output_dir:
+        base_dir = output_dir
+        file_type = "output"
+    elif os.path.commonpath((file_path, temp_dir)) == temp_dir:
+        base_dir = temp_dir
+        file_type = "temp"
+    else:
+        return None
+    rel_dir = os.path.relpath(os.path.dirname(file_path), base_dir)
+    if rel_dir == ".":
+        rel_dir = ""
+    return {
+        "filename": os.path.basename(file_path),
+        "subfolder": rel_dir,
+        "type": file_type,
     }
 
 
@@ -273,6 +300,22 @@ class VideoCombineS3(vhs_nodes.VideoCombine):
         if not res_tuple:
             return result
         save_output, output_files = res_tuple[0]
+        if output_files:
+            seen = set()
+            download_entries = []
+            for file_path in output_files[1:]:
+                entry = _download_entry_for_file(file_path)
+                if not entry:
+                    continue
+                key = (entry["type"], entry["subfolder"], entry["filename"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                download_entries.append(entry)
+            if download_entries:
+                ui = result.get("ui") or {}
+                ui.setdefault("downloads", []).extend(download_entries)
+                result["ui"] = ui
         if not save_output:
             return result
         output_root = folder_paths.get_output_directory()
