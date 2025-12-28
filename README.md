@@ -86,3 +86,4 @@ export S3IO_THUMB_PREFIX="thumbs"
 - S3 listings are refreshed when you use ComfyUI's Refresh (Refresh Node Definitions).
 - Download cache lives under ComfyUI temp as `temp/s3-io/...` and respects S3 ETag changes.
 - Thumbnails are stored in `S3IO_THUMB_PREFIX` as `.jpg` (max 256px).
+- Image previews fetch S3 thumbnails (or originals) into `temp` when the file is not present locally.

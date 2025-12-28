@@ -2,6 +2,7 @@ import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
 
 const EXTENSION_NAME = "comfy.s3io.upload";
+const PREVIEW_NODE_NAME = "LoadImageS3";
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp";
 const ACCEPTED_VIDEO_TYPES =
     "video/webm,video/mp4,video/quicktime,video/x-matroska,image/gif";
@@ -55,9 +56,33 @@ const addToComboValues = (widget, value) => {
     }
 };
 
+const normalizeComboValue = (value) => {
+    if (Array.isArray(value)) return value[0];
+    return value;
+};
+
 const isImageFile = (file) => file?.type?.startsWith("image/");
 const isVideoFile = (file) =>
     file?.type?.startsWith("video/") || file?.type === "image/gif";
+
+const fetchS3PreviewEntry = async (name) => {
+    if (!name) return null;
+    const resp = await api.fetchApi(
+        `/s3io/preview/image?name=${encodeURIComponent(name)}`
+    );
+    if (resp.status !== 200) return null;
+    return resp.json();
+};
+
+const setNodePreviewOutput = (node, entry) => {
+    if (!node || !entry?.filename) return;
+    if (!app.nodeOutputs) app.nodeOutputs = {};
+    app.nodeOutputs[`${node.id}`] = {
+        images: [entry],
+        animated: [false],
+    };
+    node.graph?.setDirtyCanvas(true);
+};
 
 const uploadFile = async (
     file,
@@ -159,6 +184,29 @@ app.registerExtension({
             );
             const uploadWidget = this.widgets?.find((w) => w.name === "upload");
             if (!comboWidget || !uploadWidget) return r;
+
+            if (nodeData?.name === PREVIEW_NODE_NAME) {
+                let previewToken = 0;
+                const originalCallback = comboWidget.callback;
+                const node = this;
+                const requestPreview = (value) => {
+                    const selected = normalizeComboValue(value ?? comboWidget.value);
+                    if (!selected) return;
+                    const token = ++previewToken;
+                    void (async () => {
+                        const entry = await fetchS3PreviewEntry(selected);
+                        if (token !== previewToken) return;
+                        setNodePreviewOutput(node, entry);
+                    })();
+                };
+                comboWidget.callback = function (value) {
+                    if (originalCallback) {
+                        originalCallback.apply(this, arguments);
+                    }
+                    requestPreview(value);
+                };
+                requestPreview(comboWidget.value);
+            }
 
             const isVideo = config.uploadRoute.includes("/video");
             const fileFilter = isVideo ? isVideoFile : isImageFile;

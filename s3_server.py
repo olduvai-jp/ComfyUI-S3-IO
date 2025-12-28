@@ -21,6 +21,18 @@ def _safe_subfolder(value: str) -> str:
     return normalized
 
 
+def _safe_object_name(value: str) -> str:
+    if not value:
+        raise ValueError("Missing name")
+    normalized = value.replace("\\", "/").lstrip("/")
+    if not normalized:
+        raise ValueError("Invalid name")
+    parts = [part for part in normalized.split("/") if part]
+    if any(part in (".", "..") for part in parts):
+        raise ValueError("Invalid name")
+    return "/".join(parts)
+
+
 def _compare_file_hash(filepath: str, payload) -> bool:
     hasher = node_helpers.hasher()
     if os.path.exists(filepath):
@@ -96,6 +108,27 @@ async def upload_image_to_s3(request):
     s3_helpers.invalidate_list_cache()
 
     return web.json_response({"name": filename, "subfolder": subfolder, "type": "input"})
+
+
+@server.PromptServer.instance.routes.get("/s3io/preview/image")
+async def preview_image_from_s3(request):
+    name = request.rel_url.query.get("name", "")
+    name = folder_paths.annotated_filepath(name)[0]
+    try:
+        name = _safe_object_name(name)
+    except ValueError:
+        return web.Response(status=400)
+    s3_key = s3_helpers.resolve_input_key(name)
+    thumb_key = s3_helpers.thumb_key_for(s3_key)
+    try:
+        try:
+            local_path = s3_helpers.download_to_cache(thumb_key, kind="thumbs")
+        except FileNotFoundError:
+            local_path = s3_helpers.download_to_cache(s3_key)
+    except FileNotFoundError:
+        return web.Response(status=404)
+    subfolder, filename = s3_helpers.local_temp_preview_path(local_path)
+    return web.json_response({"filename": filename, "subfolder": subfolder, "type": "temp"})
 
 
 @server.PromptServer.instance.routes.post("/s3io/upload/video")
