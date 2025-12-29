@@ -131,6 +131,23 @@ async def preview_image_from_s3(request):
     return web.json_response({"filename": filename, "subfolder": subfolder, "type": "temp"})
 
 
+@server.PromptServer.instance.routes.get("/s3io/preview/video")
+async def preview_video_from_s3(request):
+    name = request.rel_url.query.get("name", "")
+    name = folder_paths.annotated_filepath(name)[0]
+    try:
+        name = _safe_object_name(name)
+    except ValueError:
+        return web.Response(status=400)
+    s3_key = s3_helpers.resolve_input_key(name)
+    try:
+        local_path = s3_helpers.download_to_cache(s3_key)
+    except FileNotFoundError:
+        return web.Response(status=404)
+    subfolder, filename = s3_helpers.local_temp_preview_path(local_path)
+    return web.json_response({"filename": filename, "subfolder": subfolder, "type": "temp"})
+
+
 @server.PromptServer.instance.routes.post("/s3io/upload/video")
 async def upload_video_to_s3(request):
     post = await request.post()

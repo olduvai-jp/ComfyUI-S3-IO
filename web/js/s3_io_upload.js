@@ -2,7 +2,14 @@ import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
 
 const EXTENSION_NAME = "comfy.s3io.upload";
-const PREVIEW_NODE_NAME = "LoadImageS3";
+const PREVIEW_NODE_CONFIGS = {
+    LoadImageS3: {
+        previewRoute: "/s3io/preview/image",
+    },
+    LoadVideoUploadS3: {
+        previewRoute: "/s3io/preview/video",
+    },
+};
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp";
 const ACCEPTED_VIDEO_TYPES =
     "video/webm,video/mp4,video/quicktime,video/x-matroska,image/gif";
@@ -65,10 +72,10 @@ const isImageFile = (file) => file?.type?.startsWith("image/");
 const isVideoFile = (file) =>
     file?.type?.startsWith("video/") || file?.type === "image/gif";
 
-const fetchS3PreviewEntry = async (name) => {
-    if (!name) return null;
+const fetchS3PreviewEntry = async (name, previewRoute) => {
+    if (!name || !previewRoute) return null;
     const resp = await api.fetchApi(
-        `/s3io/preview/image?name=${encodeURIComponent(name)}`
+        `${previewRoute}?name=${encodeURIComponent(name)}`
     );
     if (resp.status !== 200) return null;
     return resp.json();
@@ -185,7 +192,8 @@ app.registerExtension({
             const uploadWidget = this.widgets?.find((w) => w.name === "upload");
             if (!comboWidget || !uploadWidget) return r;
 
-            if (nodeData?.name === PREVIEW_NODE_NAME) {
+            const previewConfig = PREVIEW_NODE_CONFIGS[nodeData?.name];
+            if (previewConfig) {
                 let previewToken = 0;
                 const originalCallback = comboWidget.callback;
                 const node = this;
@@ -194,7 +202,10 @@ app.registerExtension({
                     if (!selected) return;
                     const token = ++previewToken;
                     void (async () => {
-                        const entry = await fetchS3PreviewEntry(selected);
+                        const entry = await fetchS3PreviewEntry(
+                            selected,
+                            previewConfig.previewRoute
+                        );
                         if (token !== previewToken) return;
                         setNodePreviewOutput(node, entry);
                     })();
