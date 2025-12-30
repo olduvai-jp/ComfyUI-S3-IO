@@ -78,6 +78,7 @@ export S3IO_THUMB_PREFIX="thumbs"
 ## UI Upload/Download Integration
 
 - Adds upload buttons and drag-and-drop/paste support for `Load Image from S3` and `Load Video (Upload) from S3`.
+- Adds a delete button to remove the currently selected S3 input file (with confirmation prompt).
 - Also hooks into `VHS_LoadVideo` / `VHS_LoadVideoFFmpeg` if those nodes exist.
 - If `comfyuiDL` is available, output downloads are requested automatically.
 

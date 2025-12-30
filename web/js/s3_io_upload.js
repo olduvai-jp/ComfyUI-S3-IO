@@ -21,12 +21,16 @@ const NODE_UPLOAD_CONFIGS = {
         uploadRoute: "/s3io/upload/image",
         formField: "image",
         allowBatchFromInput: true,
+        deleteRoute: "/s3io/delete/input",
+        mediaType: "image",
     },
     LoadVideoUploadS3: {
         inputName: "video",
         accept: ACCEPTED_VIDEO_TYPES,
         uploadRoute: "/s3io/upload/video",
         formField: "video",
+        deleteRoute: "/s3io/delete/input",
+        mediaType: "video",
     },
     VHS_LoadVideo: {
         inputName: "video",
@@ -63,9 +67,23 @@ const addToComboValues = (widget, value) => {
     }
 };
 
+const removeFromComboValues = (widget, values) => {
+    if (!widget?.options?.values) return;
+    const targets = new Set(values);
+    widget.options.values = widget.options.values.filter(
+        (value) => !targets.has(value)
+    );
+};
+
 const normalizeComboValue = (value) => {
     if (Array.isArray(value)) return value[0];
     return value;
+};
+
+const normalizeComboValues = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.filter(Boolean);
+    return [value];
 };
 
 const isImageFile = (file) => file?.type?.startsWith("image/");
@@ -91,6 +109,14 @@ const setNodePreviewOutput = (node, entry) => {
     node.graph?.setDirtyCanvas(true);
 };
 
+const clearNodePreviewOutput = (node) => {
+    if (!node || !app.nodeOutputs) return;
+    if (app.nodeOutputs[`${node.id}`]) {
+        delete app.nodeOutputs[`${node.id}`];
+        node.graph?.setDirtyCanvas(true);
+    }
+};
+
 const uploadFile = async (
     file,
     { isPasted = false, uploadRoute, formField }
@@ -111,6 +137,24 @@ const uploadFile = async (
 
     const data = await resp.json();
     return data.subfolder ? `${data.subfolder}/${data.name}` : data.name;
+};
+
+const deleteFile = async (name, { deleteRoute, mediaType }) => {
+    const body = new FormData();
+    body.append("name", name);
+    if (mediaType) body.append("media_type", mediaType);
+
+    const resp = await api.fetchApi(deleteRoute, {
+        method: "POST",
+        body,
+    });
+
+    if (resp.status !== 200) {
+        toast("Delete failed", `${resp.status} - ${resp.statusText}`, "error");
+        return false;
+    }
+
+    return true;
 };
 
 const createFileInput = ({ accept, allow_batch, fileFilter, onSelect }) => {
@@ -250,6 +294,52 @@ app.registerExtension({
             });
 
             uploadWidget.callback = () => openFileSelection();
+
+            if (config.deleteRoute) {
+                const deleteSelected = async () => {
+                    const selected = normalizeComboValues(comboWidget.value);
+                    if (!selected.length) {
+                        toast("Delete skipped", "No selection", "warn");
+                        return;
+                    }
+                    if (!window.confirm("Delete selected S3 input file(s)?")) {
+                        return;
+                    }
+
+                    const failures = [];
+                    for (const name of selected) {
+                        const ok = await deleteFile(name, {
+                            deleteRoute: config.deleteRoute,
+                            mediaType: config.mediaType,
+                        });
+                        if (!ok) failures.push(name);
+                    }
+                    if (failures.length) return;
+
+                    removeFromComboValues(comboWidget, selected);
+                    if (Array.isArray(comboWidget.value)) {
+                        comboWidget.value = comboWidget.value.filter(
+                            (value) => !selected.includes(value)
+                        );
+                    } else {
+                        const nextValues = comboWidget.options?.values ?? [];
+                        comboWidget.value = nextValues[0] ?? null;
+                    }
+                    clearNodePreviewOutput(this);
+                    comboWidget.callback?.(comboWidget.value);
+                    this.graph?.setDirtyCanvas(true);
+                };
+
+                const deleteWidget = this.addWidget(
+                    "button",
+                    "delete",
+                    "delete",
+                    () => deleteSelected()
+                );
+                if (deleteWidget) {
+                    deleteWidget.serialize = false;
+                }
+            }
 
             useNodeDragAndDrop(this, {
                 fileFilter,

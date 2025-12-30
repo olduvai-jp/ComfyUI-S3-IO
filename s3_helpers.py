@@ -272,6 +272,25 @@ def upload_file(local_path: str, key: str, content_type: Optional[str] = None, a
             time.sleep(0.5 * (attempt + 1))
 
 
+def _delete_cache_path(cache_path: str) -> None:
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+    etag_path = _etag_path_for_cache(cache_path)
+    if os.path.exists(etag_path):
+        os.remove(etag_path)
+
+
+def delete_cached_object(key: str, kind: str = "objects") -> None:
+    cache_path = _cache_path_for_key(key, kind)
+    _delete_cache_path(cache_path)
+
+
+def delete_object(key: str) -> None:
+    client = get_s3_client()
+    config = _resolve_config()
+    client.delete_object(Bucket=config.bucket, Key=key)
+
+
 def input_key_for(name: str) -> str:
     config = _resolve_config()
     clean = name.lstrip("/")

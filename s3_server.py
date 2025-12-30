@@ -148,6 +148,32 @@ async def preview_video_from_s3(request):
     return web.json_response({"filename": filename, "subfolder": subfolder, "type": "temp"})
 
 
+@server.PromptServer.instance.routes.post("/s3io/delete/input")
+async def delete_input_from_s3(request):
+    post = await request.post()
+    name = post.get("name", "")
+    media_type = (post.get("media_type") or "").lower()
+    name = folder_paths.annotated_filepath(name)[0]
+    try:
+        name = _safe_object_name(name)
+    except ValueError:
+        return web.Response(status=400)
+
+    s3_key = s3_helpers.resolve_input_key(name)
+    try:
+        s3_helpers.delete_object(s3_key)
+        s3_helpers.delete_cached_object(s3_key)
+        if media_type == "image":
+            thumb_key = s3_helpers.thumb_key_for(s3_key)
+            s3_helpers.delete_object(thumb_key)
+            s3_helpers.delete_cached_object(thumb_key, kind="thumbs")
+    except Exception:
+        return web.Response(status=500)
+
+    s3_helpers.invalidate_list_cache()
+    return web.json_response({"name": name, "deleted": True})
+
+
 @server.PromptServer.instance.routes.post("/s3io/upload/video")
 async def upload_video_to_s3(request):
     post = await request.post()
