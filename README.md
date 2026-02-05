@@ -63,6 +63,7 @@ export S3IO_THUMB_PREFIX="thumbs"
 
 - Saves the image locally (same as the stock node) and uploads to `S3IO_OUTPUT_PREFIX`.
 - Ensures unique filenames on S3 (adds ` (n)` suffixes if needed).
+- `filename_prefix` supports the standard replacements (`%date:yyyy-MM-dd%`, `%OtherNode.widget%`, etc.) just like the stock Save nodes.
 
 ### Load Video (Upload) from S3
 
@@ -74,6 +75,15 @@ export S3IO_THUMB_PREFIX="thumbs"
 
 - Extends VideoHelperSuite output and uploads all generated files to `S3IO_OUTPUT_PREFIX`.
 - Adds UI download entries so ComfyUI can prompt for downloads.
+- `filename_prefix` accepts the same replacements (`%date:...%`, `%SomeNode.widget%`) as `VHS_VideoCombine`.
+
+Example prefix:
+
+```
+%date:yyyyMMdd%/run_%PositivePrompt.text%
+```
+
+This saves under a date-based subfolder and inserts another node's widget value, matching the behavior of the built-in save nodes.
 
 ## UI Upload/Download Integration
 
